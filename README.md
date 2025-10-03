@@ -12,86 +12,89 @@ MBP is a lightweight, language-agnostic protocol for structuring Large Language 
 
 ### Base Block
 - Name (use `-` for spaces, all lowercase)
-- ID (auto assigned, tries to just use name but adds an extra identifier for duplicate IDs)
+- ID (auto assigned, tries to use name but adds an extra identifier for duplicate IDs)
 - Description (natural language description for LLM, could be optional)
 - Arguments (key-value pair, can have nested arguments, should point out data type to LLM)
 - Argument descriptions
-- Boolean `isFunctionBlock` (if the Block comes with a function to call or if it should be intercepted for custom logic in the parse loop)
-- A function to execute when called (optional, `isFunctionBlock` needs to be set to true for this)
+- Block Flags:
+  - `isFunction` (boolean, true/false, not visible to LLM): Indicates if the block executes a predefined function or requires custom logic in the parse loop.
+  - `hasReturn` (boolean, true/false, visible to LLM): Indicates if the block returns a value to the LLM (e.g., grep-like functionality).
+- A function to execute when called (optional, requires `isFunction` to be true)
 
-### Block Types
+### Folder Block
+- Name: `list-folder`
+- ID: Auto-assigned
+- Description: Returns a list of available MBP blocks in the specified folder
+- Arguments: `folder_path` (string, specifies the folder to query)
+- Block Flags:
+  - `isFunction`: True (executes a predefined function to list blocks)
+  - `hasReturn`: True (returns block metadata to the LLM)
+- Function: Scans the specified folder for MBP blocks and returns their metadata (name, ID, description, `hasReturn`, args with name/type/description)
+- Output Format: Multiple single-line {MBPB-DOC} entries, e.g.:
+  ```
+  {MBPB-DOC "replace", "description": "Replaces text in a string", "hasReturn": true, "args": [ {"name": "search", "type": "string", "description": "String to find."}, {"name": "replace", "type": "string", "description": "Replacement."}, {"name": "text", "type": "string", "description": "Input text."} ] }
+  {MBPB-DOC "grep", "description": "Searches text for matches", "hasReturn": true, "args": [ {"name": "pattern", "type": "string", "description": "Pattern to match."}, {"name": "text", "type": "string", "description": "Input text."} ] }
+  ```
 
-#### Custom Blocks
-- Don't have a function to execute included in the file
-- Set `isFunctionBlock` to false for the parse loop
-- Must be intercepted in the parse loop and user executed
-
-#### Function Blocks
-- In the file have function to execute
-- `isFunctionBlock` will be skipped in the parse loop
-- Can be mapped to function in different file
-- MBPBs should be function blocks with function in the file, but can be custom
+## Block Flags
+- `isFunction`: Determines whether the block executes a predefined function (true) or requires interception for custom logic in the parse loop (false). Not exposed to the LLM to minimize context window usage.
+- `hasReturn`: Specifies whether the block returns output to the LLM (true) or not (false). Visible to the LLM to inform it about expected return values.
 
 ### LLM Base Block
-```json
-{MBPB
-  "replace",
-  "args": [
-    {"search": "print('Hello')"},
-    {"replace": "print('Hi')"}
-  ]
-}
+```
+{MBPB "replace", "args": [ {"search": "print('Hello')"}, {"replace": "print('Hi')"} ] }
 ```
 - ID
 - Arguments (and nested arguments)
 
 ## System Prompt
-- explain MBP with overview
-- show examples of use of MBP
-- current MBP session
-    - user options
-    - available mbp blocks
-    - user prompt
+- Regular system prompt (optional, general instructions)
+- Explain MBP with overview
+- Show examples of MBP use
+- Available MBP blocks (as single-line {MBPB-DOC "name", "description": "...", "hasReturn": true, "args": [ {"name": "...", "type": "...", "description": "..."} ] } entries)
+- User prompt
 
 ### User Options
-- leftover output supported
-- multi blocks
-- parallel execution?
+- Leftover output supported
+- Multi blocks
+- Parallel execution
 
 ## Parsing
-- might need custom parsing due to the custom json style
-- loop through each mbp block
-- leftover output put variable for use
+- Custom parsing required due to the custom braced style
+- Loop through each MBP block
+- Leftover output stored in a variable for use
 
 ## MBPB **(move to new repo)**
 - `mbpb` or `mbpblocks`
-- package manager for MBP blocks
-- clones repo of mbp block into desired folder
-- checks for upgrades
-- language specifc, need identifier name for each block for language
-- or all blocks are done in monorepo
-- possibly a .mbpb file in project root for managing blocks in project
-- people can contribute to our mbpb list, all manually audited by us
-- handle block dependencies
-- option of block being pseudo code in json with different language implementations
-- have function to if the function doesn't exist in desired language, then download without function and user can edit it.
-- we can have an autoupdate everytime `mbpblocks` runs like homebrew
-- breaking changes warning for updates, will prompt for confirmation to make sure to update
-- u can change versions of blocks
-- `mbpblocks update` (or upgrage) to update all blocks
+- Package manager for MBP blocks
+- Clones repo of MBP block into desired folder (e.g., `.mbpb/blocks`)
+- Checks for upgrades
+- Language-specific, needs identifier name for each block per language
+- Or all blocks in a monorepo
+- `.mbpb` file in project root for managing blocks in project
+- Community contributions to MBPB list, manually audited
+- Handle block dependencies
+- Option for blocks to be pseudocode in JSON with different language implementations
+- If a function doesn’t exist in the desired language, download without function for user editing
+- Auto-update on `mbpblocks` run, like Homebrew
+- Breaking changes warning for updates, prompts for confirmation
+- Change block versions
+- `mbpblocks update` (or upgrade) to update all blocks
+- Folder structure support (e.g., `.mbpb/blocks/utils/text`) with `list-folder` block to query block metadata
 
 ## Flow
-- user sets up Blocks
-- MBP prompt gets generated with available blocks
-- prompt gets sent to LLM
-- llm reply gets parsed
+- User sets up Blocks
+- MBP prompt gets generated with available blocks (or `list-folder` to query specific folders)
+- Prompt gets sent to LLM
+- LLM reply gets parsed
 
 ## Implementation Notes
-- libs will be developed for each language
-    - we can have a list of features with version, then each language implementation will have readme saying which version they support
-- test 
+- Libraries will be developed for each language
+  - List of features with version, each language implementation’s README will specify supported version
+- `list-folder` function implemented in libraries to scan MBPB folder structure
 
 ## Future Considerations
-- Support block execution order and multi-step tasks (e.g., executing multiple blocks at once).
+- Support block execution order and multi-step tasks (e.g., executing multiple blocks at once)
 - Support parallel execution of blocks async (fast inference models)
-- Handle invalid blocks with potential auto-retry functionality. (return malformed blocks back to llm with comments for each invalid value for the llm to understand its mistakes and retry)
+- Handle invalid blocks with auto-retry functionality: app detects errors in parse loop (e.g., arg validation), uses helper to generate retry prompt explaining error, resends to LLM. No auto-loop; app handles retries.
+- MBP logs
