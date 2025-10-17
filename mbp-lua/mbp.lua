@@ -1,14 +1,13 @@
 local mbp = {}
 
 function mbp.generate_prompt(blocks, user_prompt, regular_system_prompt)
-  local mbp_prompt = regular_system_prompt or "" .. "\n\n" ..
-    "You are an AI using MBP to structure outputs. MBP lets you call blocks for actions. Call with {MBPB \"id\", \"args\": [ {\"arg_name\": value}, ... ] }. Multiple calls ok, inline or at end. If hasReturn: true, expect output back. Use list-folder to query blocks in specific folders if needed.\n\n" ..
+  local mbp_prompt = (regular_system_prompt or "") .. "\n\n" ..
+    "You are an AI that performs actions by structuring outputs with MBP. MBP lets you call blocks for actions. Call with {MBPB \"id\", \"args\": [ {\"arg_name\": value}, ... ] }. Multiple calls ok, inline or at end. If hasReturn: true, expect output back. Use list-folder to query blocks in specific folders if needed.\n\n" ..
     "Examples:\n" ..
     "- Call replace: {MBPB \"replace\", \"args\": [ {\"search\": \"foo\"}, {\"replace\": \"bar\"}, {\"text\": \"foo world\"} ] }\n" ..
     "- Call list-folder: {MBPB \"list-folder\", \"args\": [ {\"folder_path\": \"utils/text\"} ] }\n" ..
     "- No calls: Regular text output.\n\n" ..
     "Available blocks:\n"
-
   for _, block in pairs(blocks) do
     local args_str = {}
     for arg_name, arg_type in pairs(block.arguments or {}) do
@@ -17,7 +16,6 @@ function mbp.generate_prompt(blocks, user_prompt, regular_system_prompt)
     mbp_prompt = mbp_prompt .. string.format("{MBPB-DOC \"%s\", \"description\": \"%s\", \"hasReturn\": %s, \"args\": [ %s ] }\n",
       block.name, block.description or "", block.hasReturn and "true" or "false", table.concat(args_str, ", "))
   end
-
   mbp_prompt = mbp_prompt .. "\nUser prompt: " .. user_prompt
   return mbp_prompt
 end

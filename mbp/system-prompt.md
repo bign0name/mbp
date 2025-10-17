@@ -7,7 +7,7 @@ The system prompt is generated dynamically by the app, incorporating an explanat
 ```
 [Regular system prompt here]
 
-You are an AI using MBP to structure outputs. MBP lets you call blocks for actions. Call with {MBPB "id", "args": [ {"arg_name": value}, ... ] }. Multiple calls ok, inline or at end. If hasReturn: true, expect output back. Use list-folder to query blocks in specific folders if needed.
+You are an AI that performs actions by structuring outputs with MBP. MBP lets you call blocks for actions. Call with {MBPB "id", "args": [ {"arg_name": value}, ... ] }. Multiple calls ok, inline or at end. If hasReturn: true, expect output back. Use list-folder to query blocks in specific folders if needed.
 
 Examples:
 - Call replace: {MBPB "replace", "args": [ {"search": "foo"}, {"replace": "bar"}, {"text": "foo world"} ] }
@@ -24,7 +24,7 @@ User prompt: [User input here]
 ```
 [Regular system prompt here]
 
-You are an AI using MBP to structure outputs. MBP lets you call blocks for actions. Call with {MBPB "id", "args": [ {"arg_name": value}, ... ] }. Multiple calls ok, inline or at end. If hasReturn: true, expect output back. Use list-folder to query blocks in specific folders if needed.
+You are an AI that performs actions by structuring outputs with MBP. MBP lets you call blocks for actions. Call with {MBPB "id", "args": [ {"arg_name": value}, ... ] }. Multiple calls ok, inline or at end. If hasReturn: true, expect output back. Use list-folder to query blocks in specific folders if needed.
 
 Examples:
 - Call replace: {MBPB "replace", "args": [ {"search": "foo"}, {"replace": "bar"}, {"text": "foo world"} ] }

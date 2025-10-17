@@ -1,10 +1,10 @@
 # Model Block Protocol (MBP)
 
 ## Overview
-MBP is a lightweight, language-agnostic protocol for structuring Large Language Model (LLM) outputs into parseable blocks. It enables developers to define, parse, and process blocks containing arguments and values, supporting both executable functions and custom app logic. MBP provides libraries to parse LLM outputs into block objects and regular output, allowing apps to handle blocks flexibly without server-side dependencies or heavy frameworks.
+MBP is a lightweight, language-agnostic protocol for enabling LLMs to perform actions through structured, parseable blocks. It enables developers to define, parse, and process blocks containing arguments and values, supporting both executable functions and custom app logic. MBP provides libraries to parse LLM outputs into block objects and regular output, allowing apps to handle blocks flexibly without server-side dependencies or heavy frameworks.
 
 ## Objectives
-- Enable LLMs to generate structured blocks with unique IDs for reliable parsing.
+- Enable LLMs to perform actions via structured blocks with unique IDs for reliable parsing and execution.
 - Provide libraries to parse LLM output into a list of blocks and leftover output.
 - Allow developers to define available blocks and process them in a user-controlled loop.
 
