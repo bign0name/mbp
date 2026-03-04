@@ -1,129 +1,342 @@
 # MBP Block Schema
 
 ## User Code Block Schema
-Full schema for defining blocks in user code. Includes all fields for internal use.
+Full schema for defining blocks in user code. A single definition serves both MBPB-DOC generation and LLM call parsing — one source of truth, two consumers. Description fields are used for DOC generation and ignored during parsing.
 
 ```json
 {
-  "name": "replace",  // String: Block name (lowercase, use '-' for spaces)
-  "id": "replace-1",  // String: Unique ID (auto-assigned, appends suffix for duplicates)
-  "description": "Replaces occurrences of a search string with a replacement string in the given text.",  // String: Natural language description for LLM (optional)
-  "arguments": [  // Array of objects: Key-value pairs for arguments, can be nested
-    {
-      "search": "string"  // Key: Arg name, Value: Data type hint for LLM
-    },
-    {
-      "replace": "string"
-    },
-    {
-      "text": "string"  // Optional: Nested example if needed
-    }
-  ],
-  "argument_descriptions": {  // Object: Descriptions for each argument
-    "search": "The string to search for.",
-    "replace": "The string to replace with.",
-    "text": "The input text to perform replacement on."
+  "name": "write-file",
+  "id": "write-file",
+  "description": "Writes content to a file at the specified path.",
+  "arguments": {
+    "path": "string",
+    "content": "string"
   },
-  "isFunction": true,  // Boolean: True if executes a predefined function, false for custom logic
-  "hasReturn": true,  // Boolean: True if returns value to LLM, false for void
-  "function": "path/to/function"  // String: Path or reference to executable function (optional)
-}
-```
-
-## LLM-Facing Block Schema
-Minimal format for presenting a single block to the LLM in the system prompt. Uses custom braced syntax for consistency with call format. Shown multi-line here for readability, but delivered single-line in prompts to save context window space and match call format.
-
-```
-{MBPB-DOC
-  "replace",
-  "description": "Replaces occurrences of a search string with a replacement string.",
-  "hasReturn": true,
-  "args": [
-    {
-      "name": "search",
-      "type": "string",
-      "description": "The string to search for."
-    },
-    {
-      "name": "replace",
-      "type": "string",
-      "description": "The string to use as replacement."
-    },
-    {
-      "name": "text",
-      "type": "string",
-      "description": "The input text."
-    }
-  ]
-}
-```
-
-## LLM Call Format
-Custom braced format used by LLM to invoke a block. Parsed from LLM output. Always single-line for consistency and minimal context usage.
-
-```
-{MBPB "replace", "args": [ {"search": "Hello"}, {"replace": "Hi"}, {"text": "Hello world"} ] }
-```
-
-## Examples
-
-### Example 1: Simple Replacement
-LLM-Facing (in prompt, single-line):
-```
-{MBPB-DOC "replace", "description": "Replaces text.", "hasReturn": true, "args": [ {"name": "search", "type": "string", "description": "String to find."}, {"name": "replace", "type": "string", "description": "Replacement."}, {"name": "text", "type": "string", "description": "Input text."} ] }
-```
-
-LLM Call:
-```
-{MBPB "replace", "args": [ {"search": "apple"}, {"replace": "banana"}, {"text": "I like apple pie"} ] }
-```
-
-### Example 2: List Folder
-LLM-Facing (in prompt, single-line):
-```
-{MBPB-DOC "list-folder", "description": "Returns a list of available MBP blocks in the specified folder.", "hasReturn": true, "args": [ {"name": "folder_path", "type": "string", "description": "The folder to query."} ] }
-```
-
-LLM Call:
-```
-{MBPB "list-folder", "args": [ {"folder_path": "utils/text"} ] }
-```
-
-### Example 3: Nested Arguments
-User Code Schema:
-```json
-{
-  "name": "complex-op",
-  "id": "complex-op-1",
-  "description": "Performs a complex operation.",
-  "arguments": [
-    {
-      "input": {
-        "sub1": "number",
-        "sub2": "string"
-      }
-    },
-    {
-      "mode": "boolean"
-    }
-  ],
   "argument_descriptions": {
-    "input": "Nested input params",
-    "sub1": "A number value.",
-    "sub2": "A string value.",
-    "mode": "Operation mode."
+    "path": "The file path to write to.",
+    "content": "The content to write to the file."
   },
   "isFunction": true,
-  "hasReturn": false
+  "hasReturn": false,
+  "parallelSafe": false,
+  "visible": true,
+  "function": "<function reference>"
 }
 ```
 
-LLM-Facing (in prompt, single-line):
+### Example with Duplicate Name Suffix
+When multiple blocks share the same name, ID gets a suffix:
+```json
+{
+  "name": "calculate",
+  "id": "calculate",
+  ...
+}
+{
+  "name": "calculate",
+  "id": "calculate-1",
+  ...
+}
+{
+  "name": "calculate",
+  "id": "calculate-2",
+  ...
+}
 ```
-{MBPB-DOC "complex-op", "description": "Performs a complex operation.", "hasReturn": false, "args": [ {"name": "input", "type": "object", "description": "Nested input params", "sub_args": [ {"name": "sub1", "type": "number", "description": "A number value."}, {"name": "sub2", "type": "string", "description": "A string value."} ] }, {"name": "mode", "type": "boolean", "description": "Operation mode."} ] }
+LLM uses the ID to call the correct block.
+
+### Field Descriptions
+
+| Field | Type | Required | Visible to LLM | Description |
+|-------|------|----------|----------------|-------------|
+| name | string | yes | yes | Block name, lowercase, use `-` for spaces (not `_`) |
+| id | string | auto | yes | Unique ID, auto-assigned from name. Suffix added for duplicates. LLM uses this to call blocks. |
+| description | string | recommended | yes | Natural language description |
+| arguments | object | yes | yes (as types) | Key-value pairs of arg names and types |
+| argument_descriptions | object | recommended | yes | Human-readable descriptions per argument |
+| isFunction | boolean | yes | no | True if executes predefined function |
+| hasReturn | boolean | yes | yes | True if returns value to LLM |
+| returnDescription | string | if hasReturn | yes | Describes what the return value contains |
+| parallelSafe | boolean | no (default: false) | no | True if block can execute concurrently |
+| visible | boolean | no (default: true) | no | False to exclude from DOC generation and folder listings |
+| function | reference | if isFunction | no | Reference to executable function (language-dependent) |
+
+### Supported Argument Types
+- `string` — JSON string, quoted
+- `number` — JSON number, unquoted
+- `boolean` — JSON boolean, `true` or `false`
+- `object` — JSON object, use `sub_args` in DOC to describe nested structure
+- `array` — JSON array, e.g. `["a", "b", "c"]` or `[1, 2, 3]`
+- `null` — JSON null, for optional arguments with no value
+
+### MBPB-DOC Generation
+This single block definition is transformed into the MBPB-DOC format for the system prompt. The generation module reads `id`, `description`, `hasReturn`, `returnDescription`, and merges `arguments` + `argument_descriptions` into the `args` array. All other fields (`name`, `isFunction`, `parallelSafe`, `visible`, `function`) are excluded. Blocks with `visible: false` are skipped entirely.
+
+See [mbp-doc-gen.md](mbp-doc-gen.md) for the full field mapping and pseudocode.
+
+## LLM-Facing Block Documentation (MBPB-DOC)
+Format for presenting blocks to LLM in system prompt. Always single-line to save context window. Auto-generated by app from block definitions.
+
+### Format
+```
+{MBPB-DOC "id", "description": "...", "hasReturn": bool, "args": [{"name": "...", "type": "...", "description": "..."}]/MBPB-DOC}
 ```
 
-LLM Call:
+For blocks with `hasReturn: true`, include `returnDescription`:
 ```
-{MBPB "complex-op", "args": [ {"input": {"sub1": 42, "sub2": "test"}}, {"mode": true} ] }
+{MBPB-DOC "id", "description": "...", "hasReturn": true, "returnDescription": "...", "args": [...]}/MBPB-DOC}
 ```
+
+### Example
+```
+{MBPB-DOC "write-file", "description": "Writes content to a file", "hasReturn": false, "args": [{"name": "path", "type": "string", "description": "File path"}, {"name": "content", "type": "string", "description": "Content to write"}]/MBPB-DOC}
+```
+
+### Args Array Structure
+Each argument is an object with:
+- `name`: Argument name
+- `type`: Data type (`string`, `number`, `boolean`, `object`, `array`, `null`)
+- `description`: What the argument does
+- `sub_args`: (optional) For nested objects or typed arrays, array of child argument definitions
+
+## LLM Call Format (MBPB)
+Format used by LLM to invoke blocks. Supports single-line and multi-line.
+
+### Single-line Format
+```
+{MBPB "id", "args": {"key": "value"}/MBPB}
+```
+
+### Multi-line Format
+```
+{MBPB "id", "args": {
+  "key1": "value1",
+  "key2": "longer value that benefits from\nmultiple lines"
+}/MBPB}
+```
+
+### Args Object Structure
+Simple JSON object (not array of objects). All standard JSON types supported:
+```
+"args": {
+  "simple_arg": "value",
+  "number_arg": 42,
+  "bool_arg": true,
+  "list_arg": ["tag1", "tag2", "tag3"],
+  "nested_arg": {
+    "sub1": "value",
+    "sub2": 100
+  }
+}
+```
+
+## Return Format (MBPB-RET)
+App-generated tags that wrap return values sent back to the LLM. The block ID and index identify which call the return corresponds to.
+
+### Success
+```
+{MBPB-RET "block-id", "index": 1}
+return content here
+{/MBPB-RET}
+```
+
+### Error
+```
+{MBPB-RET "block-id", "index": 2, "error": true}
+error message here
+{/MBPB-RET}
+```
+
+Errors always return regardless of `hasReturn`. Blocks with `hasReturn: false` return nothing on success, but still return MBPB-RET on error.
+
+### Multiple Returns
+```
+{MBPB-RET "grep", "index": 1}
+matching lines here
+{/MBPB-RET}
+{MBPB-RET "read-file", "index": 2}
+file contents here
+{/MBPB-RET}
+```
+
+## Retry Format (MBPB-TRY)
+App-generated tags sent when a block fails to parse. Includes block ID (if extractable), index, and error message. The LLM should fix the formatting and retry.
+
+```
+{MBPB-TRY "block-id", "index": 3}
+Malformed JSON in args object
+{/MBPB-TRY}
+```
+
+Auto-retry is for parse failures only. Code execution errors use MBPB-RET with error flag — the LLM or user decides whether to retry those.
+
+## Complete Examples
+
+### Example 1: Simple Block (Single-line)
+
+**User Code Definition:**
+```json
+{
+  "name": "replace",
+  "id": "replace",
+  "description": "Replaces occurrences of search string with replacement.",
+  "arguments": {
+    "search": "string",
+    "replace": "string",
+    "text": "string"
+  },
+  "argument_descriptions": {
+    "search": "The string to search for.",
+    "replace": "The string to replace with.",
+    "text": "The input text."
+  },
+  "isFunction": true,
+  "hasReturn": true,
+  "returnDescription": "The text with all replacements applied.",
+  "parallelSafe": true
+}
+```
+
+**MBPB-DOC (system prompt):**
+```
+{MBPB-DOC "replace", "description": "Replaces occurrences of search string with replacement", "hasReturn": true, "returnDescription": "The text with all replacements applied", "args": [{"name": "search", "type": "string", "description": "String to find"}, {"name": "replace", "type": "string", "description": "Replacement"}, {"name": "text", "type": "string", "description": "Input text"}]/MBPB-DOC}
+```
+
+**LLM Call:**
+```
+{MBPB "replace", "args": {"search": "Hello", "replace": "Hi", "text": "Hello world"}/MBPB}
+```
+
+**Return:**
+```
+{MBPB-RET "replace", "index": 1}
+Hi world
+{/MBPB-RET}
+```
+
+### Example 2: File Write Block (Multi-line)
+
+**User Code Definition:**
+```json
+{
+  "name": "write-file",
+  "id": "write-file",
+  "description": "Writes content to a file at the specified path.",
+  "arguments": {
+    "path": "string",
+    "content": "string"
+  },
+  "argument_descriptions": {
+    "path": "File path to write to.",
+    "content": "Content to write."
+  },
+  "isFunction": true,
+  "hasReturn": false,
+  "parallelSafe": false
+}
+```
+
+**MBPB-DOC (system prompt):**
+```
+{MBPB-DOC "write-file", "description": "Writes content to a file", "hasReturn": false, "args": [{"name": "path", "type": "string", "description": "File path"}, {"name": "content", "type": "string", "description": "Content"}]/MBPB-DOC}
+```
+
+**LLM Call:**
+```
+{MBPB "write-file", "args": {
+  "path": "src/main.lua",
+  "content": "local M = {}\n\nfunction M.setup(opts)\n  M.config = opts or {}\nend\n\nreturn M"
+}/MBPB}
+```
+
+### Example 3: Array Arguments (Multi-line)
+
+**User Code Definition:**
+```json
+{
+  "name": "tag-files",
+  "id": "tag-files",
+  "description": "Applies tags to specified files.",
+  "arguments": {
+    "tags": "array",
+    "paths": "array",
+    "recursive": "boolean"
+  },
+  "argument_descriptions": {
+    "tags": "List of tag strings to apply.",
+    "paths": "List of file paths to tag.",
+    "recursive": "Whether to tag files in subdirectories."
+  },
+  "isFunction": true,
+  "hasReturn": false,
+  "parallelSafe": true
+}
+```
+
+**MBPB-DOC (system prompt):**
+```
+{MBPB-DOC "tag-files", "description": "Applies tags to specified files", "hasReturn": false, "args": [{"name": "tags", "type": "array", "description": "List of tag strings to apply"}, {"name": "paths", "type": "array", "description": "List of file paths to tag"}, {"name": "recursive", "type": "boolean", "description": "Whether to tag files in subdirectories"}]/MBPB-DOC}
+```
+
+**LLM Call:**
+```
+{MBPB "tag-files", "args": {
+  "tags": ["utility", "core", "stable"],
+  "paths": ["src/utils.lua", "src/core.lua"],
+  "recursive": true
+}/MBPB}
+```
+
+### Example 4: Nested Arguments
+
+**User Code Definition:**
+```json
+{
+  "name": "http-request",
+  "id": "http-request",
+  "description": "Makes an HTTP request.",
+  "arguments": {
+    "url": "string",
+    "method": "string",
+    "headers": "object",
+    "body": "string"
+  },
+  "argument_descriptions": {
+    "url": "Request URL.",
+    "method": "HTTP method (GET, POST, etc).",
+    "headers": "Request headers as key-value pairs.",
+    "body": "Request body."
+  },
+  "isFunction": true,
+  "hasReturn": true,
+  "parallelSafe": true
+}
+```
+
+**MBPB-DOC (system prompt):**
+```
+{MBPB-DOC "http-request", "description": "Makes an HTTP request", "hasReturn": true, "args": [{"name": "url", "type": "string", "description": "Request URL"}, {"name": "method", "type": "string", "description": "HTTP method"}, {"name": "headers", "type": "object", "description": "Request headers"}, {"name": "body", "type": "string", "description": "Request body"}]/MBPB-DOC}
+```
+
+**LLM Call:**
+```
+{MBPB "http-request", "args": {
+  "url": "https://api.example.com/data",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer token123"
+  },
+  "body": "{\"key\": \"value\"}"
+}/MBPB}
+```
+
+## Parsing Rules
+
+1. **Start tag**: `{MBPB ` (with space after MBPB)
+2. **End tag**: `/MBPB}`
+3. **Content**: Everything between start and end tags
+4. **Block ID**: First quoted string after `{MBPB `
+5. **Args**: JSON object following `"args": `
+
+Parsing uses a JSON-aware single-pass algorithm that tracks brace depth and string boundaries. This correctly handles blocks whose string values contain MBP-like syntax (e.g., nested blocks in code). See [mbp-parser.md](mbp-parser.md) for full pseudocode.
