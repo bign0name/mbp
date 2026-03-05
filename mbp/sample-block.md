@@ -19,6 +19,7 @@ Reference block for language implementations. Implement this first to verify the
     "replace": "The string to replace with.",
     "text": "The input text."
   },
+  "argument_order": ["search", "replace", "text"],
   "isFunction": true,
   "hasReturn": true,
   "returnDescription": "The text with all replacements applied.",
@@ -69,6 +70,8 @@ Malformed JSON in args object
 
 The actual logic. Returns a value or throws an error.
 
+**Important**: Implementations must use **plain text matching** (literal string search), not pattern/regex-based replacement. Many languages have string replace functions that interpret special characters as patterns (e.g., Lua's `string.gsub` treats `.`, `%`, `(`, etc. as pattern metacharacters). Use a plain `find`-and-replace loop instead.
+
 ```
 function replace_function(args):
     -- Validate required arguments
@@ -79,7 +82,23 @@ function replace_function(args):
     if args.text == null:
         throw error("Missing required argument: text")
 
-    return string_replace_all(args.text, args.search, args.replace)
+    return string_replace_all_plain(args.text, args.search, args.replace)
+```
+
+Where `string_replace_all_plain` performs literal substring replacement — no regex, no pattern interpretation. Example implementation approach:
+```
+function string_replace_all_plain(text, search, replacement):
+    result = ""
+    position = 1
+    while position <= length(text):
+        found = find_plain(text, search, position)  -- plain/literal find
+        if found == NOT_FOUND:
+            result = result + substring(text, position, end)
+            break
+        result = result + substring(text, position, found - 1)
+        result = result + replacement
+        position = found + length(search)
+    return result
 ```
 
 ### Registration
@@ -95,6 +114,7 @@ replace_block = {
         replace: "The string to replace with.",
         text: "The input text."
     },
+    argument_order: ["search", "replace", "text"],
     isFunction: true,
     hasReturn: true,
     returnDescription: "The text with all replacements applied.",
@@ -150,12 +170,13 @@ for each block in blocks:
 ## Verification Checklist
 
 1. Register block → ID assigned as `replace`
-2. Generate DOC → matches MBPB-DOC above (includes `returnDescription`)
+2. Generate DOC → matches MBPB-DOC above (includes `returnDescription`, arg order matches `argument_order`)
 3. Insert DOC into system prompt → LLM sees the block
 4. Parse LLM call → extracted block has id `replace`, args with search/replace/text, index 1
-5. Execute with valid args → returns modified string
+5. Execute with valid args → returns modified string (plain text replacement, no pattern interpretation)
 6. Execute with missing arg → throws error, caught by wrapper
 7. Wrap success in MBPB-RET → `{MBPB-RET "replace", "index": 1} ... {/MBPB-RET}`
 8. Wrap error in MBPB-RET → `{MBPB-RET "replace", "index": 1, "error": true} ... {/MBPB-RET}`
 9. Test malformed block → parser generates MBPB-TRY with ID and index
 10. Full loop → parse, execute, generate reply, send back
+11. Test with pattern metacharacters → `search: "file.txt"` replaces literally, not as regex `file<any char>txt`

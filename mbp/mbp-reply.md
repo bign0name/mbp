@@ -31,21 +31,35 @@ function generate_retry(block_id, index, error_message):
     return ret
 ```
 
-### Execute Blocks and Collect Results
+### Block Lookup with Folder Prefix Stripping
 
-Wraps block execution to catch errors and pair each block with its result.
+Used by `execute_blocks` and `generate_reply` to find block definitions that may have been called with folder-prefixed IDs. Tries the full ID first, then strips the folder prefix. See [mbp-doc-gen.md](mbp-doc-gen.md) for the `strip_folder_prefix` definition.
 
 ```
-function execute_blocks(blocks, registry):
+function lookup_block(block_id, registry, folder_map):
+    -- Try direct lookup first
+    if registry has block_id:
+        return registry[block_id]
+
+    -- Strip folder prefix and try again
+    if folder_map is not null:
+        stripped = strip_folder_prefix(block_id, folder_map)
+        if registry has stripped:
+            return registry[stripped]
+
+    return null
+```
+
+### Execute Blocks and Collect Results
+
+Wraps block execution to catch errors and pair each block with its result. Uses `lookup_block` to handle folder-prefixed IDs.
+
+```
+function execute_blocks(blocks, registry, folder_map):
     results = []
 
     for each block in blocks:
-        block_def = registry[block.id]
-
-        if block_def == null:
-            -- Unknown block ID (might be folder-prefixed, strip and retry)
-            stripped_id = strip_folder_prefix(block.id)
-            block_def = registry[stripped_id]
+        block_def = lookup_block(block.id, registry, folder_map)
 
         if block_def == null:
             result = { block: block, error: true, content: "Unknown block: " + block.id }
@@ -69,16 +83,16 @@ function execute_blocks(blocks, registry):
 
 ### Generate Reply
 
-Combines execution results and parse retries into a single reply string.
+Combines execution results and parse retries into a single reply string. Uses `lookup_block` to resolve block definitions for hasReturn checks.
 
 ```
-function generate_reply(results, retries, registry):
+function generate_reply(results, retries, registry, folder_map):
     parts = []
 
     -- Process execution results
     for each result in results:
         block = result.block
-        block_def = registry[block.id] or registry[strip_folder_prefix(block.id)]
+        block_def = lookup_block(block.id, registry, folder_map)
 
         if result.error:
             -- Errors always return regardless of hasReturn
@@ -145,5 +159,5 @@ Malformed JSON in args object
 ## Notes
 - `generate_reply` returns null when there's nothing to send (all blocks succeeded with hasReturn: false and no parse errors). App can skip sending a reply in this case.
 - Execution order matches block order in the LLM response. Results are processed in the same order.
-- The `strip_folder_prefix` function checks known folder paths and strips matching prefixes to look up the block in the flat registry.
+- `lookup_block` handles folder-prefixed IDs by trying direct lookup first, then stripping the prefix. The `strip_folder_prefix` function is defined in [mbp-doc-gen.md](mbp-doc-gen.md).
 - For blocks with `isFunction: false`, the app handles execution in its own loop and can call `generate_return` directly with the result.

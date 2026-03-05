@@ -257,6 +257,6 @@ function get_leftover(parser):
 ## Notes
 - Naive regex breaks on nested MBP blocks within string arguments. The JSON-aware parser handles this correctly with negligible overhead.
 - When a block fails to parse and has a complete end tag, the parser generates a retry (MBPB-TRY) with the block ID and index. If no end tag exists, the start tag is treated as regular text.
-- The `json_parse` call uses the language's built-in JSON parser — the args object is standard JSON once extracted from the MBPB tags.
+- The `json_parse` call uses the language's built-in JSON parser — the args object is standard JSON once extracted from the MBPB tags. **MBP does not provide a JSON implementation.** Language implementations must use their platform's JSON library (e.g., `JSON.parse` in JS/TS, `json` module in Python, `vim.json` in Neovim, `encoding/json` in Go, etc.).
 - Apps can structure leftover text however they want (single string, array of segments, etc.).
 - Block index is 1-based and tracks position in the LLM's response across both successful blocks and failed parse attempts.

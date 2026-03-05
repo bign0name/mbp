@@ -7,6 +7,9 @@ The system prompt is generated dynamically by the app, incorporating an explanat
 - The template is minimal by design - add app-specific instructions to the regular system prompt section
 - The "Rules" section ensures LLM executes all blocks in one response, minimizing token costs
 - The "Formatting" section ensures LLM output is reliably parseable, including edge cases with code/nested content
+- Expanded folders have their blocks dumped into the "Available blocks" section with folder-prefixed IDs — the LLM sees them without calling `list-folder`
+- Non-expanded folders appear in the "Available folders" section with descriptions — the LLM calls `list-folder` to discover their blocks
+- The "Available folders" section is only included if non-expanded folders exist. The `list-folder` block should only be registered if needed (see `has_non_expanded_folders` in [mbp-doc-gen.md](mbp-doc-gen.md))
 
 ## Template
 ```
@@ -21,7 +24,7 @@ Rules:
 - Do NOT wait for confirmation between blocks
 - Multiple blocks allowed, inline or grouped
 - If hasReturn: true, expect output back
-- Use list-folder to query blocks in specific folders if needed
+- Use list-folder to browse available folders and discover more blocks
 
 Formatting:
 - All string values MUST be properly quoted and JSON-escaped
@@ -48,6 +51,11 @@ Examples:
 
 Available blocks:
 [Insert {MBPB-DOC .../MBPB-DOC} lines here, one per block]
+[Expanded folder blocks are included here with folder-prefixed IDs]
+
+[If non-expanded folders exist:]
+Available folders (use list-folder to see contents):
+[Insert folder listings here, one per line: - path/ Description]
 
 Returns:
 - Blocks with hasReturn: true will send results back in {MBPB-RET "id", "index": N} ... {/MBPB-RET} tags after all blocks execute
@@ -71,7 +79,7 @@ Rules:
 - Do NOT wait for confirmation between blocks
 - Multiple blocks allowed, inline or grouped
 - If hasReturn: true, expect output back
-- Use list-folder to query blocks in specific folders if needed
+- Use list-folder to browse available folders and discover more blocks
 
 Formatting:
 - All string values MUST be properly quoted and JSON-escaped
@@ -97,9 +105,14 @@ Examples:
 - No blocks needed: Regular text output.
 
 Available blocks:
-{MBPB-DOC "replace", "description": "Replaces occurrences of a search string with a replacement string", "hasReturn": true, "returnDescription": "The text with all replacements applied", "args": [{"name": "search", "type": "string", "description": "The string to search for"}, {"name": "replace", "type": "string", "description": "The replacement string"}, {"name": "text", "type": "string", "description": "The input text"}]/MBPB-DOC}
 {MBPB-DOC "write-file", "description": "Writes content to a file at the specified path", "hasReturn": false, "args": [{"name": "path", "type": "string", "description": "File path to write to"}, {"name": "content", "type": "string", "description": "Content to write"}]/MBPB-DOC}
 {MBPB-DOC "list-folder", "description": "Returns a list of available MBP blocks in the specified folder", "hasReturn": true, "returnDescription": "MBPB-DOC lines for blocks in the folder, plus subfolder names", "args": [{"name": "folder_path", "type": "string", "description": "The folder to query"}]/MBPB-DOC}
+{MBPB-DOC "utils/replace", "description": "Replaces occurrences of a search string with a replacement string", "hasReturn": true, "returnDescription": "The text with all replacements applied", "args": [{"name": "search", "type": "string", "description": "The string to search for"}, {"name": "replace", "type": "string", "description": "The replacement string"}, {"name": "text", "type": "string", "description": "The input text"}]/MBPB-DOC}
+{MBPB-DOC "utils/grep", "description": "Searches text for pattern matches", "hasReturn": true, "returnDescription": "Matching lines", "args": [{"name": "pattern", "type": "string", "description": "Pattern to match"}, {"name": "text", "type": "string", "description": "Input text"}]/MBPB-DOC}
+
+Available folders (use list-folder to see contents):
+- io/ File system operations
+- network/ HTTP and socket utilities
 
 Returns:
 - Blocks with hasReturn: true will send results back in {MBPB-RET "id", "index": N} ... {/MBPB-RET} tags after all blocks execute
@@ -109,6 +122,8 @@ Returns:
 
 User prompt: Create a new Lua module at src/utils.lua with a helper function that returns 42.
 ```
+
+In this example, `utils/` is an expanded folder — its blocks (`replace`, `grep`) appear directly in the available blocks section with folder-prefixed IDs. The `io/` and `network/` folders are non-expanded, so they appear in the folder listing with descriptions for the LLM to discover via `list-folder`.
 
 ## Handling List-Folder Returns
 When the LLM calls list-folder, wrap the block docs in MBPB-RET tags:

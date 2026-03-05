@@ -16,6 +16,7 @@ Full schema for defining blocks in user code. A single definition serves both MB
     "path": "The file path to write to.",
     "content": "The content to write to the file."
   },
+  "argument_order": ["path", "content"],
   "isFunction": true,
   "hasReturn": false,
   "parallelSafe": false,
@@ -54,6 +55,7 @@ LLM uses the ID to call the correct block.
 | description | string | recommended | yes | Natural language description |
 | arguments | object | yes | yes (as types) | Key-value pairs of arg names and types |
 | argument_descriptions | object | recommended | yes | Human-readable descriptions per argument |
+| argument_order | array | recommended | no | Array of argument name strings specifying output order for DOC generation. If omitted, order is implementation-defined (may vary by language). Recommended for deterministic output. |
 | isFunction | boolean | yes | no | True if executes predefined function |
 | hasReturn | boolean | yes | yes | True if returns value to LLM |
 | returnDescription | string | if hasReturn | yes | Describes what the return value contains |
@@ -70,7 +72,7 @@ LLM uses the ID to call the correct block.
 - `null` — JSON null, for optional arguments with no value
 
 ### MBPB-DOC Generation
-This single block definition is transformed into the MBPB-DOC format for the system prompt. The generation module reads `id`, `description`, `hasReturn`, `returnDescription`, and merges `arguments` + `argument_descriptions` into the `args` array. All other fields (`name`, `isFunction`, `parallelSafe`, `visible`, `function`) are excluded. Blocks with `visible: false` are skipped entirely.
+This single block definition is transformed into the MBPB-DOC format for the system prompt. The generation module reads `id`, `description`, `hasReturn`, `returnDescription`, and merges `arguments` + `argument_descriptions` into the `args` array, using `argument_order` to determine output order. All other fields (`name`, `isFunction`, `parallelSafe`, `visible`, `function`) are excluded. Blocks with `visible: false` are skipped entirely.
 
 See [mbp-doc-gen.md](mbp-doc-gen.md) for the full field mapping and pseudocode.
 
@@ -190,6 +192,7 @@ Auto-retry is for parse failures only. Code execution errors use MBPB-RET with e
     "replace": "The string to replace with.",
     "text": "The input text."
   },
+  "argument_order": ["search", "replace", "text"],
   "isFunction": true,
   "hasReturn": true,
   "returnDescription": "The text with all replacements applied.",
@@ -230,6 +233,7 @@ Hi world
     "path": "File path to write to.",
     "content": "Content to write."
   },
+  "argument_order": ["path", "content"],
   "isFunction": true,
   "hasReturn": false,
   "parallelSafe": false
@@ -267,6 +271,7 @@ Hi world
     "paths": "List of file paths to tag.",
     "recursive": "Whether to tag files in subdirectories."
   },
+  "argument_order": ["tags", "paths", "recursive"],
   "isFunction": true,
   "hasReturn": false,
   "parallelSafe": true
@@ -307,6 +312,7 @@ Hi world
     "headers": "Request headers as key-value pairs.",
     "body": "Request body."
   },
+  "argument_order": ["url", "method", "headers", "body"],
   "isFunction": true,
   "hasReturn": true,
   "parallelSafe": true

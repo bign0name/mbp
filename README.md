@@ -5,6 +5,10 @@ MBP is a comprehensive, language-agnostic protocol for enabling LLMs to perform 
 
 Apps should refer to MBP blocks as "actions" in user-facing interfaces for cleaner terminology.
 
+## Why MBP
+
+MBP is a set of upgrades over MCP (Model Context Protocol). The LLM chains multiple actions in a single response instead of waiting for each tool call to return before continuing, meaning fewer round trips, lower latency, and less token overhead. Everything runs locally by default. No server, no transport layer, no handshake, just a system prompt, a parser, and your functions. Registration, parsing, execution, and reply generation all happen in-process. Actions are just functions. This makes MBP a good fit for editors, CLI tools, local agents, and any app, small or large, that wants to give LLMs tool use without infrastructure. Actions organize into folders with visibility controls, so apps can dynamically expose or hide available actions. If you need server-based tools, make your action's function call a server, MBP doesn't care what happens inside the function. In the future, remote actions defined as JSON with a server endpoint will let users drop in a schema and server address, and execution happens remotely. Basically MCP, but within MBP, so remote and local actions coexist and chain in a single response. Skills are also easy to set up. Add markdown guides to a folder, list them in the system prompt, and make a block that returns the guide content when the LLM needs it.
+
 ## Objectives
 - Enable LLMs to perform actions via structured blocks with unique IDs for reliable parsing and execution.
 - Provide libraries to parse LLM output into a list of blocks and leftover output.
@@ -93,23 +97,56 @@ During MBPB-DOC generation, the module reads LLM-visible fields from this defini
 - **isFunction**: true
 - **hasReturn**: true
 - **parallelSafe**: true (read-only operation)
-- **Function**: Looks up the app's folder map, generates MBPB-DOC lines for blocks in the requested folder. Only returns blocks with `visible: true`. If the folder contains subfolders, includes them in the response so the LLM can explore deeper.
+- **Function**: Looks up the app's folder map, generates MBPB-DOC lines for blocks in the requested folder. Only returns blocks with `visible: true`. If the folder contains subfolders, includes them with descriptions in the response so the LLM can explore deeper.
+- **Registration**: Only needed when non-expanded folders exist. Use `has_non_expanded_folders` to check.
 
 ## Folders
 
 Folders are an app-level organizational concept. Blocks themselves don't know what folder they're in — the app maintains a separate folder map that groups block IDs under folder paths.
 
 ### Folder Map
-The app maintains a mapping of folder paths to block IDs:
+The app maintains a mapping of folder paths to folder entries. Each entry contains block IDs, a description, and an expanded flag:
 ```
 {
-  "utils/": ["replace", "grep", "split"],
-  "utils/text/": ["capitalize", "truncate"],
-  "io/": ["write-file", "read-file"]
+  "utils/": {
+    "block_ids": ["replace", "grep", "split"],
+    "description": "Text manipulation utilities",
+    "expanded": true
+  },
+  "utils/text/": {
+    "block_ids": ["capitalize", "truncate"],
+    "description": "Text casing and truncation",
+    "expanded": false
+  },
+  "io/": {
+    "block_ids": ["write-file", "read-file"],
+    "description": "File system operations",
+    "expanded": false
+  }
 }
 ```
 
 Blocks are registered once in the app's block registry (flat list). The folder map just references them by ID. The same block can appear in multiple folders.
+
+### Folder Descriptions
+Each folder has a `description` field that tells the LLM what the folder contains. This is required for non-expanded folders — without it the LLM guesses folder contents from the path name alone, which is unreliable.
+
+Non-expanded folders appear in the system prompt as a listing with descriptions:
+```
+Available folders (use list-folder to see contents):
+- utils/text/ Text casing and truncation
+- io/ File system operations
+```
+
+When `list-folder` returns subfolders, descriptions are included:
+```
+Subfolder: utils/text/ - Text casing and truncation
+```
+
+### Expanded Folders
+Folders with `expanded: true` have their blocks dumped directly into the system prompt with folder-prefixed IDs. The LLM sees them as available blocks without calling `list-folder`. Use this for folders the LLM should always have access to.
+
+Folders with `expanded: false` (the default) appear in the folder listing and require `list-folder` for discovery.
 
 ### Folder-Prefixed IDs
 When `list-folder` returns blocks, their IDs are prefixed with the folder path. This is how the LLM knows to call `utils/replace` instead of just `replace`.
@@ -123,7 +160,7 @@ When `list-folder` returns blocks, their IDs are prefixed with the folder path. 
 ```
 {MBPB-DOC "utils/replace", "description": "Replaces text", "hasReturn": true, "args": [{"name": "search", "type": "string", "description": "Find"}, {"name": "replace", "type": "string", "description": "Replace with"}, {"name": "text", "type": "string", "description": "Input"}]/MBPB-DOC}
 {MBPB-DOC "utils/grep", "description": "Searches for pattern", "hasReturn": true, "args": [{"name": "pattern", "type": "string", "description": "Pattern"}, {"name": "text", "type": "string", "description": "Input"}]/MBPB-DOC}
-Subfolder: utils/text/
+Subfolder: utils/text/ - Text casing and truncation
 ```
 
 **LLM can then call blocks with the full path:**
@@ -230,9 +267,10 @@ Pseudocode for the generation module is in [mbp/mbp-doc-gen.md](mbp/mbp-doc-gen.
 2. MBP overview and explanation (include guidance to execute all blocks in single response)
 3. MBP formatting rules (JSON escaping, multi-line for complex content)
 4. MBP usage examples
-5. Available blocks as MBPB-DOC entries
-6. Return format (only if any blocks have `hasReturn: true`)
-7. User prompt
+5. Available blocks as MBPB-DOC entries (includes expanded folder blocks with prefixed IDs)
+6. Available folders listing with descriptions (only if non-expanded folders exist)
+7. Return format (only if any blocks have `hasReturn: true`)
+8. User prompt
 
 See [mbp/system-prompt.md](mbp/system-prompt.md) for the full template.
 
@@ -434,7 +472,7 @@ Both files have been created. The calculator module exports an add function, and
 {MBPB-RET "list-folder", "index": 1}
 {MBPB-DOC "utils/replace", "description": "Replaces text", "hasReturn": true, "returnDescription": "Text with replacements applied", "args": [{"name": "search", "type": "string", "description": "Find"}, {"name": "replace", "type": "string", "description": "Replace with"}, {"name": "text", "type": "string", "description": "Input"}]/MBPB-DOC}
 {MBPB-DOC "utils/grep", "description": "Searches for pattern", "hasReturn": true, "returnDescription": "Matching lines", "args": [{"name": "pattern", "type": "string", "description": "Pattern"}, {"name": "text", "type": "string", "description": "Input"}]/MBPB-DOC}
-Subfolder: utils/text/
+Subfolder: utils/text/ - Text casing and truncation
 {/MBPB-RET}
 ```
 
@@ -446,12 +484,14 @@ Subfolder: utils/text/
 ## Implementation Notes
 - Modules developed for each language with version-specific feature support
 - A single block definition object is used for both DOC generation and call parsing
-- The module provides: block registration with auto ID suffix, DOC generation (`block_to_doc`), system prompt assembly, folder map management, JSON-aware block parsing (batch + stream), and reply generation (returns, errors, retries)
-- `list-folder` function implemented in modules to look up folder map and generate DOC lines
+- The module provides: block registration with auto ID suffix, DOC generation (`block_to_doc` with optional folder prefix), system prompt assembly (with expanded folder blocks and non-expanded folder listings), folder map management with descriptions and expanded flag, JSON-aware block parsing (batch + stream), and reply generation (returns, errors, retries)
+- `list-folder` function implemented in modules to look up folder map and generate DOC lines with subfolder descriptions
 - Each language implementation's README specifies supported MBP version
+- MBP does not provide a JSON implementation — language implementations must use their platform's JSON library
 
 ## mbpbs - MBP Blocks Package Manager (move to new repo)
 - Package manager for MBP blocks
+- `mbpbs` or `mbpblocks`
 - Clones repo of MBP block into desired folder (e.g., `.mbpbs/blocks`), lazy.nvim style git clone for block distribution
 - Checks for upgrades with breaking change warnings, prompts for confirmation
 - Change block versions
@@ -466,6 +506,8 @@ Subfolder: utils/text/
 - Folder structure support (e.g., `.mbpbs/blocks/utils/text`) with `list-folder` block to query block metadata
 
 ## Future Considerations
+- CI with lightweight test suite per language implementation — verify the sample-block.md checklist (registration, DOC gen, parsing, execution, returns, retries, plain text matching) as automated tests, not exhaustive coverage
+- Change examples to use generic random code language files rather that lua
 - Auto-retry loop: configurable max retry attempts for parse failures (MBPB-TRY), with backoff or abort after N failures
 - MBP execution logs
 - Block execution hooks (before/after)
@@ -473,7 +515,3 @@ Subfolder: utils/text/
 - Standard block library shipped with each language module (file ops, HTTP, grep, shell, etc.) so apps get common blocks without writing code
 - Remote blocks: blocks defined as JSON with a server endpoint, app calls the endpoint and returns the result to the LLM. Allows drag-and-drop block plugins without app code — user provides a JSON file with block schema + server address, app registers it. Execution happens on the remote server (basically MCP, but within the MBP framework — supports chaining with local blocks in a single response).
 - OS-level block registry: system-wide blocks that any MBP-aware app can discover and use, installed block packs available to all MBP apps on the system
-
-
-
-- `mbpbs` or `mbpblocks`
