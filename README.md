@@ -506,8 +506,9 @@ Subfolder: utils/text/ - Text casing and truncation
 - Folder structure support (e.g., `.mbpbs/blocks/utils/text`) with `list-folder` block to query block metadata
 
 ## Future Considerations
-- CI with lightweight test suite per language implementation — verify the sample-block.md checklist (registration, DOC gen, parsing, execution, returns, retries, plain text matching) as automated tests, not exhaustive coverage
 - Change examples to use generic random code language files rather that lua
+- Cleanable flag: optional `cleanable` field on block definitions (default: false). When true, signals that the block can be safely stripped from conversation history after execution. Lib provides `conversation.clean()` to strip all cleanable blocks from history in one call, and `conversation.clean(block)` to strip a single specific block regardless of its cleanable flag. The flag enables safe bulk cleaning without the app manually tracking which blocks are disposable.
+- CI with lightweight test suite per language implementation — verify the sample-block.md checklist (registration, DOC gen, parsing, execution, returns, retries, plain text matching) as automated tests, not exhaustive coverage
 - Auto-retry loop: configurable max retry attempts for parse failures (MBPB-TRY), with backoff or abort after N failures
 - MBP execution logs
 - Block execution hooks (before/after)
